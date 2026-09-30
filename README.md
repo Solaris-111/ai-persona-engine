@@ -439,3 +439,9 @@ $\lambda = 0.001$/h，半衰期约 29 天。
 
 > 源码：`companion-v2/persona_engine/` 下 `genome_engine.js`、`drive_metabolism.js`、`style_memory.js`，以及 `companion-v2/genome/critic.js`。
 > 所有公式均可对照源码逐行验证，常量（λ、Feq、阈值、衰减系数）均取自代码原值。
+
+---
+
+## 致谢
+
+调试器的可视化思路参考了 [OpenHer](https://github.com/kellyvv/OpenHer)——一个 macOS 上的 AI 陪伴项目。它通过 WebSocket 每轮广播 debug JSON、前端纯展示引擎状态的做法，给了 companion-v2 调试面板直接启发。
