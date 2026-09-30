@@ -444,4 +444,4 @@ $\lambda = 0.001$/h，半衰期约 29 天。
 
 ## 致谢
 
-调试器的可视化思路参考了 [OpenHer](https://github.com/kellyvv/OpenHer)——一个 macOS 上的 AI 陪伴项目。它通过 WebSocket 每轮广播 debug JSON、前端纯展示引擎状态的做法，给了 companion-v2 调试面板直接启发。
+随机神经网络的很多算法沿用了 [OpenHer](https://github.com/kellyvv/OpenHer) 的开源实现。
