@@ -1,0 +1,13 @@
+{
+  "name": "crysis-companion",
+  "version": "1.0.0",
+  "description": "Local AI companion with proactive check-ins, web browsing, and memory",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "sql.js": "^1.12.0"
+  }
+}

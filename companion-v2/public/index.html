@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crysis Companion v2.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #1a1a2e; --panel: #16213e; --border: #0f3460;
+  --gold: #e2a83e; --text: #d4c8b0; --muted: #7a6f88;
+  --accent: #6a9; --warn: #f0c060; --hot: #e06060;
+  --cool: #6080c0; --play: #a060d0; --safe: #60a0a0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; }
+#sidebar { width: 220px; min-width: 220px; background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--border); }
+#sidebar h2 { color: var(--gold); font-size: 18px; margin-bottom: 8px; }
+#sidebar .tab { padding: 10px 14px; cursor: pointer; border-radius: 6px; font-size: 14px; transition: .2s; }
+#sidebar .tab:hover { background: rgba(255,255,255,0.05); }
+#sidebar .tab.active { background: var(--border); color: var(--gold); font-weight: bold; }
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.tab-content { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+.tab-content.active { display: flex; flex-direction: column; }
+#msgs { flex: 1; overflow-y: auto; padding: 10px; }
+.msg { margin: 8px 0; padding: 10px 14px; border-radius: 12px; max-width: 80%; line-height: 1.5; font-size: 14px; }
+.msg.user { background: var(--border); margin-left: auto; }
+.msg.assistant { background: var(--panel); border: 1px solid var(--border); }
+.msg .time { font-size: 10px; color: var(--muted); margin-top: 4px; }
+#inputRow { display: flex; padding: 12px; background: var(--panel); border-top: 1px solid var(--border); margin-top: auto; }
+#inputRow input { flex: 1; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: var(--text); font-size: 14px; outline: none; }
+#inputRow button { margin-left: 8px; padding: 10px 18px; background: var(--gold); color: #000; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; }
+#inputRow button:hover { opacity: 0.9; }
+.panel-grid { display: grid; gap: 16px; }
+.panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.panel-card h3 { font-size: 14px; color: var(--gold); margin-bottom: 10px; }
+.drive-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+.drive-label { width: 70px; text-align: right; }
+.drive-bar-bg { flex: 1; height: 14px; background: rgba(255,255,255,0.05); border-radius: 7px; overflow: hidden; position: relative; }
+.drive-bar { height: 100%; border-radius: 7px; transition: width 0.5s; }
+.drive-bar.val { position: absolute; top: 0; left: 0; opacity: 0.7; }
+.drive-val { width: 50px; text-align: right; font-size: 12px; color: var(--muted); }
+.stat-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.stat-label { color: var(--muted); }
+.temp-gauge { text-align: center; font-size: 32px; font-weight: bold; margin: 10px 0; }
+.temp-gauge.cool { color: var(--cool); } .temp-gauge.warm { color: var(--warn); } .temp-gauge.hot { color: var(--hot); }
+#radarWrap { max-width: 420px; margin: 0 auto; }
+.streaming { border-left: 2px solid var(--gold); padding-left: 10px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>Crysis v2.0</h2>
+  <div class="tab active" data-tab="chat">💬 聊天</div>
+  <div class="tab" data-tab="reads">📖 阅读日志</div>
+  <div class="tab" data-tab="signals">📡 信号</div>
+  <div class="tab" data-tab="drives">🔥 驱力</div>
+  <div class="tab" data-tab="status">📊 状态</div>
+  <div style="margin-top:auto;font-size:11px;color:var(--muted);">
+    <div>端口 8766</div>
+    <div id="uptime">--</div>
+    <div>信号: <span id="tempMini">--</span></div>
+    <div>冲动: <span id="impulseMini">--</span></div>
+    <div style="margin-top:8px;display:flex;gap:4px;">
+      <button id="historyBtn" style="flex:1;padding:4px;background:var(--border);color:var(--text);border:none;border-radius:4px;cursor:pointer;font-size:11px;" title="历史记录">📋</button>
+      <button id="promptBtn" style="flex:1;padding:4px;background:var(--border);color:var(--text);border:none;border-radius:4px;cursor:pointer;font-size:11px;" title="查看prompt">🔍</button>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div class="tab-content active" id="tab-chat">
+    <div id="msgs"></div>
+    <div id="inputRow">
+      <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="handleImage(event)">
+      <button id="imgBtn" title="发图">🖼</button>
+      <input id="input" placeholder="说点什么...">
+      <button id="sendBtn">↑</button>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-reads">
+    <div style="padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="color:var(--gold);margin:0;">AI 阅读日志</h3>
+        <div style="font-size:12px;color:var(--muted);">
+          <span id="readsCount">--</span> 篇已读 ·
+          活跃窗口 <span style="color:var(--accent);">6-9 / 12-14 / 18-2</span>
+        </div>
+      </div>
+      <div id="readsStatus" style="font-size:12px;color:var(--muted);margin-bottom:12px;padding:8px;background:rgba(255,255,255,0.02);border-radius:6px;"></div>
+      <div id="readsList" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="color:var(--muted);font-size:13px;">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-signals">
+    <div class="panel-grid">
+      <div class="panel-card">
+        <h3>8D 行为信号 (基因组输出)</h3>
+        <div id="radarWrap"><canvas id="radarChart"></canvas></div>
+      </div>
+      <div class="panel-card">
+        <h3>信号解读</h3>
+        <div id="signalHints" style="font-size:13px;color:var(--muted);">等待数据...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-drives">
+    <div class="panel-grid">
+      <div class="panel-card"><h3>5维驱力状态</h3><div id="driveBars"></div></div>
+      <div class="panel-card">
+        <h3>情绪温度</h3>
+        <div class="temp-gauge" id="tempGauge">--</div>
+        <div id="tempLabel" style="text-align:center;font-size:12px;color:var(--muted);"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-status">
+    <div class="panel-grid">
+      <div class="panel-card"><h3>基因组状态</h3><div id="genomeStats"></div></div>
+      <div class="panel-card"><h3>风格记忆</h3><div id="memStats"></div></div>
+      <div class="panel-card"><h3>主动联系</h3><div id="proactiveStats"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=3"></script>
+
+<div id="historyOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;overflow-y:auto;">
+  <div style="max-width:700px;margin:40px auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+      <h3 style="color:var(--gold);">聊天记录</h3>
+      <button onclick="document.getElementById('historyOverlay').style.display='none'" style="background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <div id="historyContent"></div>
+  </div>
+</div>
+
+<div id="promptOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;overflow-y:auto;">
+  <div style="max-width:800px;margin:40px auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+      <h3 style="color:var(--gold);">当前 Prompt</h3>
+      <button onclick="document.getElementById('promptOverlay').style.display='none'" style="background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <pre id="promptContent" style="white-space:pre-wrap;font-size:12px;color:var(--text);background:var(--bg);padding:12px;border-radius:6px;max-height:70vh;overflow-y:auto;"></pre>
+  </div>
+</div>
+
+</body>
+</html>

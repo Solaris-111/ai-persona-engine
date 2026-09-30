@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genome Engine — 调试面板</title>
+<style>
+  :root {
+    --bg: #f0e6d3;
+    --bg-sidebar: #e6d8c0;
+    --border: rgba(184,140,50,0.18);
+    --text-1: #2e1a0e;
+    --text-2: rgba(46,26,14,0.58);
+    --text-3: rgba(46,26,14,0.36);
+    --accent: #c8705a;
+    --gold: #b8892a;
+    --bar-bg: rgba(184,140,50,0.10);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: 'Inter', -apple-system, 'Microsoft YaHei', sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 14px; letter-spacing: 3px; color: var(--gold); font-weight: 500; margin-bottom: 4px; }
+  .sub { font-size: 11px; color: var(--text-3); letter-spacing: 1px; margin-bottom: 20px; }
+
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .col-main { flex: 1 1 480px; min-width: 320px; }
+  .col-side { flex: 1 1 340px; min-width: 300px; }
+
+  .card {
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 10px; letter-spacing: 2.5px; color: var(--gold);
+    font-weight: 500; margin-bottom: 12px; opacity: 0.8;
+  }
+
+  /* 输入区 */
+  #input { width: 100%; min-height: 60px; background: rgba(255,255,255,0.5); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-1); resize: vertical; font-family: inherit; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  button { background: var(--gold); color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+
+  /* 回复 */
+  .reply { font-size: 15px; line-height: 1.7; color: var(--text-1); font-style: italic; }
+
+  /* 条形图 */
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .bar-label { width: 70px; font-size: 12px; color: var(--text-2); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bar-bg); border-radius: 4px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width .4s ease; }
+  .bar-val { width: 34px; font-size: 11px; color: var(--text-2); font-family: monospace; text-align: right; flex-shrink: 0; }
+  .bar-baseline { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--text-3); }
+
+  /* 热力方块 */
+  .heat { display: flex; flex-wrap: wrap; gap: 3px; }
+  .cell { width: 16px; height: 16px; border-radius: 3px; }
+  .heat-label { width: 100%; font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+  /* 元信息 */
+  .meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
+  .meta b { color: var(--accent); font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--bar-bg); color: var(--text-2); }
+
+  /* style recall */
+  .recall-item { font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .recall-item .d { color: var(--text-3); font-family: monospace; font-size: 10px; }
+
+  .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); margin-right: 6px; }
+  .idle { opacity: 0.5; }
+</style>
+</head>
+<body>
+  <h1>PERSONA ENGINE</h1>
+  <div class="sub">companion-v2 · genome 引擎调试面板</div>
+
+  <div class="layout">
+    <div class="col-main">
+      <div class="card">
+        <h2>输入 · RUN</h2>
+        <textarea id="input" placeholder="输入一条消息，跑一轮引擎管线…"></textarea>
+        <div class="btn-row">
+          <button onclick="run()">跑一轮</button>
+          <button class="ghost" onclick="reset()">重置 genome</button>
+          <span id="status" class="status-dot idle"></span>
+          <span id="ts" style="font-size:11px;color:var(--text-3)"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>注入 INJECT · 覆盖这一轮</h2>
+        <div class="heat-label" style="margin-bottom:8px">场景 context（手动指定 Critic 感知，拖到非 0.5 即覆盖）</div>
+        <div id="inject-context"></div>
+        <div style="margin-top:12px">
+          <div class="bar-row">
+            <span class="bar-label">温度</span>
+            <input id="inj-temp-enable" type="checkbox" style="width:auto;flex:0">
+            <input id="inj-temp" type="range" min="0" max="1" step="0.01" value="0.05" style="flex:1" oninput="document.getElementById('injTempVal').textContent=this.value">
+            <span class="bar-val" id="injTempVal">0.05</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">reward</span>
+            <input id="inj-reward-enable" type="checkbox" style="width:auto;flex:0">
+            <input id="inj-reward" type="range" min="-1" max="1" step="0.05" value="0.5" style="flex:1" oninput="document.getElementById('injRewardVal').textContent=this.value">
+            <span class="bar-val" id="injRewardVal">0.5</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">学习率</span>
+            <input id="inj-lr-enable" type="checkbox" style="width:auto;flex:0">
+            <input id="inj-lr" type="range" min="0" max="0.1" step="0.005" value="0.01" style="flex:1" oninput="document.getElementById('injLrVal').textContent=this.value">
+            <span class="bar-val" id="injLrVal">0.01</span>
+          </div>
+        </div>
+        <button class="ghost" onclick="clearInject()">清除注入</button>
+      </div>
+
+      <div class="card">
+        <h2>回复 REPLY</h2>
+        <div id="reply" class="reply">（还没跑过）</div>
+      </div>
+
+      <div class="card">
+        <h2>行为信号 SIGNALS</h2>
+        <div id="signals"></div>
+      </div>
+
+      <div class="card">
+        <h2>内在驱力 DRIVES</h2>
+        <div id="drives"></div>
+      </div>
+    </div>
+
+    <div class="col-side">
+      <div class="card">
+        <h2>代谢 METABOLISM</h2>
+        <div id="metabolism" class="meta"></div>
+      </div>
+
+      <div class="card">
+        <h2>神经网络 NETWORK</h2>
+        <div id="network"></div>
+      </div>
+
+      <div class="card">
+        <h2>情绪 + 后处理</h2>
+        <div id="emotion" class="meta"></div>
+      </div>
+
+      <div class="card">
+        <h2>风格记忆 STYLE RECALL</h2>
+        <div id="recall"></div>
+      </div>
+
+      <div class="card">
+        <h2>历史 HISTORY（回放）</h2>
+        <div id="history"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const SIGNALS = [
+  ['directness','直接度','#6b9ebf'], ['vulnerability','坦露度','#9c80cc'],
+  ['playfulness','玩闹度','#cc6b87'], ['initiative','主动度','#599e78'],
+  ['depth','深度','#59abbf'], ['warmth','温暖度','#c7874a'],
+  ['defiance','倔强度','#bf5757'], ['curiosity','好奇度','#c7a130'],
+];
+const DRIVES = [
+  ['connection','联结'], ['novelty','新鲜'], ['expression','表达'],
+  ['safety','安全'], ['play','玩闹'],
+];
+
+function heatColor(v) {
+  // v in [-1,1] → blue(负) / neutral / orange(正)
+  const t = Math.max(-1, Math.min(1, v));
+  const abs = Math.abs(t);
+  const r = t > 0 ? 200 + 55*abs : 200 - 40*abs;
+  const g = 140 + 40*abs;
+  const b = t > 0 ? 90 - 50*abs : 90 + 80*abs;
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+function barRow(label, value, color, baseline) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  const bl = baseline !== undefined
+    ? `<span class="bar-baseline" style="left:${Math.round(baseline*100)}%"></span>` : '';
+  return `<div class="bar-row">
+    <span class="bar-label">${label}</span>
+    <div class="bar-track">
+      <div class="bar-fill" style="width:${pct}%;background:${color}"></div>${bl}
+    </div>
+    <span class="bar-val">${(value??0).toFixed(2)}</span>
+  </div>`;
+}
+
+function heatRow(title, values) {
+  const cells = values.map(v => `<span class="cell" style="background:${heatColor(v)}" title="${(v??0).toFixed(3)}"></span>`).join('');
+  return `<div class="heat-label">${title}（${values.length} 维）</div><div class="heat">${cells}</div>`;
+}
+
+function render(trace) {
+  if (!trace) {
+    document.getElementById('reply').textContent = '（还没跑过 — 点「跑一轮」）';
+    return;
+  }
+  const status = document.getElementById('status');
+  status.className = 'status-dot';
+  document.getElementById('ts').textContent = trace.timestamp ? '上次: ' + trace.timestamp.slice(11,19) : '';
+  document.getElementById('reply').textContent = trace.reply || '';
+
+  // signals（用 noisySignals：实际注入 prompt 的）
+  const sig = trace.noisySignals || trace.genome?.signals || {};
+  document.getElementById('signals').innerHTML = SIGNALS.map(([k,label,color]) =>
+    barRow(label, sig[k], color)
+  ).join('');
+
+  // drives
+  const drives = trace.drives?.drives || {};
+  document.getElementById('drives').innerHTML = DRIVES.map(([k,label]) => {
+    const d = drives[k] || {};
+    return barRow(`${label}`, d.value ?? 0, '#c7874a', d.baseline ?? 0.3);
+  }).join('');
+
+  // metabolism
+  const m = trace.metabolize || {};
+  document.getElementById('metabolism').innerHTML = `
+    <span>温度 <b>${(m.temperature??0).toFixed(3)}</b></span>
+    <span>总挫败 <b>${(m.totalFrustration??0).toFixed(2)}</b></span>
+    <span>Δt <b>${(m.deltaHours??0).toFixed(2)}h</b></span>
+    <span>投入度 <b>${(trace.critic?.engagementScore??0).toFixed(2)}</b></span>`;
+
+  // network
+  const g = trace.genome || {};
+  document.getElementById('network').innerHTML =
+    heatRow('input', g.input || []) + '<br>' +
+    heatRow('hidden', g.hidden || []);
+
+  // emotion + post
+  const pp = trace.postProcess || {};
+  document.getElementById('emotion').innerHTML = `
+    <span>情绪 <b>${trace.emotion?.state ?? '-'}</b></span>
+    ${trace.emotion?.transitioned ? `<span class="badge">${trace.emotion.transitioned}</span>` : ''}
+    <span>相变 <b>${pp.phaseTransitioned ? '触发' : '无'}</b></span>
+    <span>轮次 <b>${pp.interactionCount ?? 0}</b></span>`;
+
+  // style recall
+  const recall = trace.styleRecall || [];
+  document.getElementById('recall').innerHTML = recall.length
+    ? recall.map(p => `<div class="recall-item">"${(p.message||'').slice(0,40)}" <span class="d">d=${(p._score??0).toFixed(2)} mass=${(p.mass??1).toFixed(1)}</span></div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-3)">（无召回 — 记忆池为空或已被蒸发）</div>';
+}
+
+async function loadTrace() {
+  try {
+    const r = await fetch('/api/trace');
+    render(await r.json());
+  } catch (_) {}
+}
+
+function initInject() {
+  document.getElementById('inject-context').innerHTML = SIGNALS.map(([key, label]) =>
+    `<div class="bar-row">
+      <span class="bar-label">${label}</span>
+      <input id="ctx-${key}" type="range" min="0" max="1" step="0.01" value="0.5" style="flex:1">
+      <span class="bar-val" id="ctxv-${key}">0.5</span>
+    </div>`
+  ).join('');
+  SIGNALS.forEach(([key]) => {
+    document.getElementById('ctx-' + key).addEventListener('input', function() {
+      document.getElementById('ctxv-' + key).textContent = this.value;
+    });
+  });
+}
+
+function collectInject() {
+  const context = {};
+  SIGNALS.forEach(([key]) => {
+    const v = parseFloat(document.getElementById('ctx-' + key).value);
+    if (Math.abs(v - 0.5) > 0.001) context[key] = v;
+  });
+  const opts = {};
+  if (Object.keys(context).length) opts.context = context;
+  if (document.getElementById('inj-temp-enable').checked) opts.temperature = parseFloat(document.getElementById('inj-temp').value);
+  if (document.getElementById('inj-reward-enable').checked) opts.reward = parseFloat(document.getElementById('inj-reward').value);
+  if (document.getElementById('inj-lr-enable').checked) opts.learningRate = parseFloat(document.getElementById('inj-lr').value);
+  return opts;
+}
+
+function clearInject() {
+  SIGNALS.forEach(([key]) => { document.getElementById('ctx-' + key).value = '0.5'; document.getElementById('ctxv-' + key).textContent = '0.5'; });
+  document.getElementById('inj-temp-enable').checked = false;
+  document.getElementById('inj-reward-enable').checked = false;
+  document.getElementById('inj-lr-enable').checked = false;
+}
+
+let historyCache = [];
+async function loadHistory() {
+  try { historyCache = await (await fetch('/api/history')).json(); } catch (_) { historyCache = []; }
+  const el = document.getElementById('history');
+  el.innerHTML = historyCache.length
+    ? historyCache.map((t, i) => `<div class="recall-item" style="cursor:pointer" onclick="renderFromHistory(${i})">#${i} ${(t.timestamp||'').slice(11,19)} "${(t.userMessage||'').slice(0,18)}" <span class="d">温度${(t.metabolize?.temperature??0).toFixed(2)}${t.postProcess?.phaseTransitioned?' ⚡':''}</span></div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-3)">（无历史）</div>';
+}
+function renderFromHistory(i) { render(historyCache[i]); }
+
+async function run() {
+  const text = document.getElementById('input').value.trim();
+  const status = document.getElementById('status');
+  status.className = 'status-dot';
+  status.style.opacity = '1';
+  try {
+    const r = await fetch('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text || '（空消息）', ...collectInject() }),
+    });
+    render(await r.json());
+    loadHistory();
+  } catch (e) {
+    document.getElementById('reply').textContent = '跑失败: ' + e.message;
+  }
+}
+
+async function reset() {
+  await fetch('/api/reset');
+  loadTrace();
+}
+
+initInject();
+loadTrace();
+loadHistory();
+setInterval(() => { loadTrace(); loadHistory(); }, 2000);
+</script>
+</body>
+</html>
